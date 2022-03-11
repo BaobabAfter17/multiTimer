@@ -19,7 +19,8 @@ using namespace mpcs_51044_log;
 using namespace fmt;
 
 
-MultiTimer::MultiTimer(int num_timers) : num_timers(num_timers)
+template <typename... Args>
+MultiTimer<void(Args...)>::MultiTimer(int num_timers) : num_timers(num_timers)
 {
     print_log(INFO, "Start initializing MultiTimer...");
     active = true;
@@ -29,7 +30,8 @@ MultiTimer::MultiTimer(int num_timers) : num_timers(num_timers)
     worker = std::thread(&MultiTimer::thread_func, this);
 }
 
-MultiTimer::~MultiTimer()
+template <typename... Args>
+MultiTimer<void(Args...)>::~MultiTimer()
 {
     std::unique_lock<std::mutex> lk(mx);
     active = false;
@@ -39,7 +41,8 @@ MultiTimer::~MultiTimer()
     print_log(INFO, "MultiTimer destoryed...");
 }
 
-void MultiTimer::thread_func()
+template <typename... Args>
+void MultiTimer<void(Args...)>::thread_func()
 {
     while (active) {
         std::unique_lock<std::mutex> lk(mx);
@@ -51,6 +54,7 @@ void MultiTimer::thread_func()
             int current_timer_id = active_timers.front()->id;
             print_log(INFO, format("Timer #{} starting tiking down", current_timer_id));
             cv.wait_until(lk, closest_expire);
+
             print_log(INFO, format("Timer #{} time out!", current_timer_id));
             active_timers.front()->num_timeouts++;
             active_timers.front()->callback();
@@ -62,14 +66,15 @@ void MultiTimer::thread_func()
     }
 }
 
-int MultiTimer::set(int id, std::chrono::milliseconds timeout, std::function<void()> callback)
+template <typename... Args>
+int MultiTimer<void(Args...)>::set(int id, std::chrono::milliseconds timeout, std::function<void(Args...)> callback, Args&&...args)
 {
     if (id < 0 || id >= num_timers || timers[id].active)
         return 1;
 
     std::lock_guard lk(mx);
     auto timer_p = std::make_unique<Timer>(timers[id]);
-    timer_p->callback = callback;
+    timer_p->callback = std::bind(callback, std::forward<Args>(args)...);
     timer_p->expire_time = std::chrono::system_clock::now() + timeout;
 
     timer_p->active = true;
@@ -80,7 +85,8 @@ int MultiTimer::set(int id, std::chrono::milliseconds timeout, std::function<voi
     return 0;
 }
 
-int MultiTimer::cancel(int id)
+template <typename... Args>
+int MultiTimer<void(Args...)>::cancel(int id)
 {
     if (id < 0 || id >= num_timers || !timers[id].active)
         return 1;
@@ -94,32 +100,30 @@ int MultiTimer::cancel(int id)
     return 0;
 }
 
-int MultiTimer::reset(int id, std::chrono::milliseconds timeout, std::function<void()> callback)
+template <typename... Args>
+int MultiTimer<void(Args...)>::reset(int id, std::chrono::milliseconds timeout, std::function<void(Args...)> callback, Args&&... args)
 {
     int status;
     if ((status = cancel(id)) != 0)
         return status;
-    if ((status = set(id, timeout, callback)) != 0)
+    if ((status = set(id, timeout, callback, args...)) != 0)
         return status;
-    // print_log(INFO, format("Timer #{} reset successful!", id));
+    print_log(INFO, format("Timer #{} reset successful!", id));
     return 0;
 }
 
-// bool timer_comp(std::unique_ptr<Timer> const &t1, std::unique_ptr<Timer> const &t2)
-// {
-//     return t1->expire_time < t2->expire_time;
-// }
 
 // TEST
-void print_timeout()
+void print_timeout(int i)
 {
     std::cout << "This is the callback function" << std::endl;
+    std::cout << "Int i is " << i << std::endl;
 } 
 
 int main()
 {
-    MultiTimer t{1};
-    t.set(0, 5s, print_timeout);
+    MultiTimer<void(int)> t{1};
+    t.set(0, 5s, print_timeout, 23);
     // std::this_thread::sleep_for(1s);
     // t.cancel(0);
 }
