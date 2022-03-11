@@ -20,7 +20,8 @@ using namespace fmt;
 
 
 template <typename... Args>
-MultiTimer<void(Args...)>::MultiTimer(int num_timers) : num_timers(num_timers)
+MultiTimer<void(Args...)>::MultiTimer(int num_timers)
+: num_timers(num_timers)
 {
     print_log(INFO, "Start initializing MultiTimer...");
     active = true;
@@ -34,7 +35,7 @@ template <typename... Args>
 MultiTimer<void(Args...)>::~MultiTimer()
 {
     std::unique_lock<std::mutex> lk(mx);
-    active = false;
+    active = false; // Stop thread_func in worker thread
     cv.notify_one();
     lk.unlock();
     worker.join();
@@ -48,8 +49,11 @@ void MultiTimer<void(Args...)>::thread_func()
         std::unique_lock<std::mutex> lk(mx);
         if (active_timers.empty()) {
             print_log(INFO, format("No active timers, waiting..."));
-            cv.wait(lk, [=]{ return !active_timers.empty(); });
-        } else {
+            cv.wait(lk, [=]
+                { return !active_timers.empty(); });
+        } else {    // Have some active timers
+
+            // Check the active timer with closest expire time
             auto closest_expire = active_timers.front()->expire_time;
             int current_timer_id = active_timers.front()->id;
             print_log(INFO, format("Timer #{} starting tiking down", current_timer_id));
@@ -59,6 +63,8 @@ void MultiTimer<void(Args...)>::thread_func()
             active_timers.front()->num_timeouts++;
             active_timers.front()->callback();
             print_log(INFO, "Callback function executed...");
+
+            // Remove expired timer from list; it is still kept in the vector
             active_timers.front()->active = false;
             active_timers.pop_front();
         }
@@ -67,8 +73,13 @@ void MultiTimer<void(Args...)>::thread_func()
 }
 
 template <typename... Args>
-int MultiTimer<void(Args...)>::set(int id, std::chrono::milliseconds timeout, std::function<void(Args...)> callback, Args&&...args)
-{
+int MultiTimer<void(Args...)>::set(
+    int id,
+    std::chrono::milliseconds timeout,
+    std::function<void(Args...)> callback,
+    Args&&...args
+){
+    // Invalid id or timer already active
     if (id < 0 || id >= num_timers || timers[id].active)
         return 1;
 
@@ -101,8 +112,12 @@ int MultiTimer<void(Args...)>::cancel(int id)
 }
 
 template <typename... Args>
-int MultiTimer<void(Args...)>::reset(int id, std::chrono::milliseconds timeout, std::function<void(Args...)> callback, Args&&... args)
-{
+int MultiTimer<void(Args...)>::reset(
+    int id,
+    std::chrono::milliseconds timeout,
+    std::function<void(Args...)> callback,
+    Args&&... args
+){
     int status;
     if ((status = cancel(id)) != 0)
         return status;
@@ -124,6 +139,6 @@ int main()
 {
     MultiTimer<void(int)> t{1};
     t.set(0, 5s, print_timeout, 23);
-    // std::this_thread::sleep_for(1s);
-    // t.cancel(0);
+    std::this_thread::sleep_for(1s);
+    t.cancel(0);
 }
