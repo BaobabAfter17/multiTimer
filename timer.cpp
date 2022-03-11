@@ -43,11 +43,12 @@ struct MultiTimer
     ~MultiTimer();
     int set(int id, std::chrono::milliseconds timeout, std::function<void()> callback);
     int cancel(int id);
+    int reset(int id, std::chrono::milliseconds timeout, std::function<void()> callback);
+
 private:
     void thread_func();
 };
 
-// num_timers must be positive
 MultiTimer::MultiTimer(int num_timers) : num_timers(num_timers)
 {
     active = true;
@@ -90,6 +91,9 @@ void MultiTimer::thread_func()
 
 int MultiTimer::set(int id, std::chrono::milliseconds timeout, std::function<void()> callback)
 {
+    if (id < 0 || id >= num_timers || timers[id].active)
+        return 1;
+
     std::lock_guard lk(mx);
     auto timer_p = std::make_unique<Timer>(timers[id]);
     timer_p->callback = callback;
@@ -103,7 +107,31 @@ int MultiTimer::set(int id, std::chrono::milliseconds timeout, std::function<voi
     return 0;
 }
 
+int MultiTimer::cancel(int id)
+{
+    if (id < 0 || id >= num_timers || !timers[id].active)
+        return 1;
 
+    std::lock_guard lk(mx);
+    timers[id].active = false;
+    active_timers.remove_if([=](std::unique_ptr<Timer> const &p)
+                 { return p->id == id; });
+    cv.notify_one();
+    return 0;
+}
+
+int MultiTimer::reset(int id, std::chrono::milliseconds timeout, std::function<void()> callback)
+{
+    int status;
+    if ((status = cancel(id)) != 0)
+        return status;
+    if ((status = set(id, timeout, callback)) != 0)
+        return status;
+    return 0;
+}
+
+
+// TEST
 void print_timeout()
 {
     std::cout << "Timeout" << std::endl;
@@ -111,13 +139,7 @@ void print_timeout()
 
 int main()
 {
-    // Timer t{};
-    // t.set(1, 3s, print_timeout);
-    // std::this_thread::sleep_for(5s);
-    // if (std::chrono::system_clock::now() > t.expire_time)
-    //     std::invoke(t.callback);
-    // std::cout << "Timer #" << t.id << std::endl;
-
     MultiTimer t{1};
-    t.set(0, 1s, print_timeout);
+    t.set(0, 10s, print_timeout);
+    t.cancel(0);
 }
