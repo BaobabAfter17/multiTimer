@@ -6,6 +6,8 @@
 var output;
 var ws;
 
+var interval_id;
+
 function init() {
     output = document.getElementById("output");
 
@@ -17,8 +19,19 @@ function init() {
         doSend('WebSocket rocks!');
     };
     ws.onclose = () => writeToScreen('<p style="color: red;">DISCONNECTED</p>');
-    ws.onmessage = msg => writeToScreen('<p style="color: blue;">RESPONSE: ' + msg.data + '</p>');
+    ws.onmessage = onMessage;
     ws.onerror = msg => writeToScreen('<p style="color: red;">ERROR: ' + msg.data + '</p>');
+}
+
+function onMessage(ws_msg) {
+    // echo
+    writeToScreen('<p style="color: blue;">RESPONSE: ' + ws_msg.data + '</p>');
+
+    if (ws_msg.data == "CANCELLED") {
+        document.getElementById("demo").innerHTML = "NOT ACTIVE";
+    } else if (ws_msg.data == "CALLBACK EXECUTED") {
+        document.getElementById("demo").innerHTML = "CALLBACK EXECUTED";
+    }
 }
 
 function writeToScreen(message) {
@@ -39,26 +52,58 @@ function doSend(message) {
 
 window.addEventListener('load', init, false);
 
-function wsSend() {
-    doSend(document.getElementById('data_to_send').value);
+function wsSendSet() {
+    var seconds = document.getElementById('data_to_send').value;
+    doSend("SET:" + seconds);
+    startCountDownDemo(parseInt(seconds));
 }
 
-function wsSendBinary() {
-    const array = new Float32Array(5);
+function wsSendCancel() {
+    doSend("CANCEL");
+}
 
-    for (var i = 0; i < array.length; ++i) {
-        array[i] = i / 2;
+function wsSendReset() {
+    var seconds = document.getElementById('data_to_send').value;
+    doSend("RESET:" + seconds);
+    if (interval_id !== 0) {
+        clearInterval(interval_id);
     }
-    doSend(array);
+    startCountDownDemo(seconds);
+}
+
+function startCountDownDemo(seconds) {
+    var distance = seconds * 1000;
+    document.getElementById("demo").innerHTML = "ACTIVE";
+
+    interval_id = setInterval(function () {
+        // Countdown cancelled in backend
+        if (document.getElementById("demo").innerHTML == "NOT ACTIVE"
+                || document.getElementById("demo").innerHTML == "CALLBACK EXECUTED") {
+            clearInterval(interval_id);
+            return;
+        }
+        
+        // Display the result in the element with id="demo"
+        distance = distance - 100;
+        document.getElementById("demo").innerHTML = distance + "ms";
+
+        // If the count down is finished, write some text 
+        if (distance < 0) {
+            clearInterval(interval_id);
+            document.getElementById("demo").innerHTML = "EXPIRING";
+        }
+    }, 100);
 }
 </script>
 </head>
 <body style="font-family: sans-serif; font-size: 1.5em">
-    <h1>Echo</h1>
+    <h1>MultiTimer Demo</h1>
 
-    <input style="font-size: 1.3em" type="text" id="data_to_send" value="hello"></input>
-    <button style="font-size: 1.3em" id="sender" onClick="wsSend()">Send</button>
-    <button style="font-size: 1.3em" id="sender_binary" onClick="wsSendBinary()">Send Binary</button>
+    <input style="font-size: 1.3em" type="number" id="data_to_send" value="5"></input>
+    <button style="font-size: 1.3em" id="sender" onClick="wsSendSet()">Set</button>
+    <button style="font-size: 1.3em" id="sender_binary" onClick="wsSendCancel()">Cancel</button>
+    <button style="font-size: 1.3em" id="sender_binary" onClick="wsSendReset()">Reset</button>
+    <p id="demo">NOT ACTIVE</p>
 
     <div id="output"></div>
 </body>

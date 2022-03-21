@@ -21,7 +21,7 @@ namespace mpcs_51044_final_project {
             std::chrono::time_point<std::chrono::system_clock> expire_time;
             std::function<void()> callback;
 
-            Timer(int id) : id(id), active(), num_timeouts(){};
+            Timer(int id) : id(id), active(false), num_timeouts(0){};
         };
 
         template <typename... Args>
