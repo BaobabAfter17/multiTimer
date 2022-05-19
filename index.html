@@ -6,7 +6,12 @@
 var output;
 var ws;
 
-var interval_id;
+var interval_ids = [0, 0, 0, 0, 0]; // for five timers
+const CANCELLED = "CANCELLED";
+const EXECUTED = "CALLBACK EXECUTED";
+const INACTIVE = "NOT ACTIVE";
+const ACTIVE = "ACTIVE";
+const EXPIRING = "EXPIRING";
 
 function init() {
     output = document.getElementById("output");
@@ -27,10 +32,14 @@ function onMessage(ws_msg) {
     // echo
     writeToScreen('<p style="color: blue;">RESPONSE: ' + ws_msg.data + '</p>');
 
-    if (ws_msg.data == "CANCELLED") {
-        document.getElementById("demo").innerHTML = "NOT ACTIVE";
-    } else if (ws_msg.data == "CALLBACK EXECUTED") {
-        document.getElementById("demo").innerHTML = "CALLBACK EXECUTED";
+    if (ws_msg.data.startsWith(CANCELLED)) {   // CANCELLED:1
+        let demo_id = "demo" + ws_msg.data[CANCELLED.length + 1];
+        document.getElementById(demo_id).innerHTML = INACTIVE;
+    } else if (ws_msg.data.startsWith(EXECUTED)) {
+        let demo_id = "demo" + ws_msg.data[EXECUTED.length + 1];
+        console.log(ws_msg.data);
+        console.log(demo_id);
+        document.getElementById(demo_id).innerHTML = EXECUTED;
     }
 }
 
@@ -52,45 +61,47 @@ function doSend(message) {
 
 window.addEventListener('load', init, false);
 
-function wsSendSet() {
-    var seconds = document.getElementById('data_to_send').value;
-    doSend("SET:" + seconds);
-    startCountDownDemo(parseInt(seconds));
+function wsSendSet(i) {
+    var seconds = document.getElementById('data_to_send' + i).value;
+    doSend("SET:" + i + ":" + seconds);
+    startCountDownDemo(parseInt(i), parseInt(seconds));
 }
 
-function wsSendCancel() {
-    doSend("CANCEL");
+function wsSendCancel(i) {
+    doSend("CANCEL:" + i);
 }
 
-function wsSendReset() {
-    var seconds = document.getElementById('data_to_send').value;
-    doSend("RESET:" + seconds);
-    if (interval_id !== 0) {
-        clearInterval(interval_id);
+function wsSendReset(i) {
+    var seconds = document.getElementById('data_to_send' + i).value;
+    doSend("RESET:" + i + ":" + seconds);
+    if (interval_ids[parseInt(i)] !== 0) {
+        clearInterval(interval_ids[parseInt(i)]);
     }
-    startCountDownDemo(seconds);
+    startCountDownDemo(parseInt(i), seconds);
 }
 
-function startCountDownDemo(seconds) {
+function startCountDownDemo(i, seconds) {
     var distance = seconds * 1000;
-    document.getElementById("demo").innerHTML = "ACTIVE";
+    const demo_id =  "demo" + i;
+    console.log(demo_id);
+    document.getElementById(demo_id).innerHTML = ACTIVE;
 
-    interval_id = setInterval(function () {
+    interval_ids[i] = setInterval(function () {
         // Countdown cancelled in backend
-        if (document.getElementById("demo").innerHTML == "NOT ACTIVE"
-                || document.getElementById("demo").innerHTML == "CALLBACK EXECUTED") {
-            clearInterval(interval_id);
+        if (document.getElementById(demo_id).innerHTML == INACTIVE
+                || document.getElementById(demo_id).innerHTML == EXECUTED) {
+            clearInterval(interval_ids[i]);
             return;
         }
         
         // Display the result in the element with id="demo"
         distance = distance - 100;
-        document.getElementById("demo").innerHTML = distance + "ms";
+        document.getElementById(demo_id).innerHTML = distance + "ms";
 
         // If the count down is finished, write some text 
         if (distance < 0) {
-            clearInterval(interval_id);
-            document.getElementById("demo").innerHTML = "EXPIRING";
+            clearInterval(interval_ids[i]);
+            document.getElementById(demo_id).innerHTML = EXPIRING;
         }
     }, 100);
 }
@@ -99,12 +110,42 @@ function startCountDownDemo(seconds) {
 <body style="font-family: sans-serif; font-size: 1.5em">
     <h1>MultiTimer Demo</h1>
 
-    <input style="font-size: 1.3em" type="number" id="data_to_send" value="5"></input>
-    <button style="font-size: 1.3em" id="sender" onClick="wsSendSet()">Set</button>
-    <button style="font-size: 1.3em" id="sender_binary" onClick="wsSendCancel()">Cancel</button>
-    <button style="font-size: 1.3em" id="sender_binary" onClick="wsSendReset()">Reset</button>
-    <p id="demo">NOT ACTIVE</p>
+    <div style="float: left;">
+        <input style="font-size: 1.3em" type="number" id="data_to_send0" value="5"></input>
+        <button style="font-size: 1.3em" id="set0" onClick="wsSendSet(0)">Set</button>
+        <button style="font-size: 1.3em" id="cancel0" onClick="wsSendCancel(0)">Cancel</button>
+        <button style="font-size: 1.3em" id="reset0" onClick="wsSendReset(0)">Reset</button>
+        <p id="demo0">NOT ACTIVE</p>
+    
+        <input style="font-size: 1.3em" type="number" id="data_to_send1" value="5"></input>
+        <button style="font-size: 1.3em" id="set1" onClick="wsSendSet(1)">Set</button>
+        <button style="font-size: 1.3em" id="cancel1" onClick="wsSendCancel(1)">Cancel</button>
+        <button style="font-size: 1.3em" id="reset1" onClick="wsSendReset(1)">Reset</button>
+        <p id="demo1">NOT ACTIVE</p>
+    
+        <input style="font-size: 1.3em" type="number" id="data_to_send2" value="5"></input>
+        <button style="font-size: 1.3em" id="set2" onClick="wsSendSet(2)">Set</button>
+        <button style="font-size: 1.3em" id="cancel2" onClick="wsSendCancel(2)">Cancel</button>
+        <button style="font-size: 1.3em" id="reset2" onClick="wsSendReset(2)">Reset</button>
+        <p id="demo2">NOT ACTIVE</p>
+    
+        <input style="font-size: 1.3em" type="number" id="data_to_send3" value="5"></input>
+        <button style="font-size: 1.3em" id="set3" onClick="wsSendSet(3)">Set</button>
+        <button style="font-size: 1.3em" id="cancel3" onClick="wsSendCancel(3)">Cancel</button>
+        <button style="font-size: 1.3em" id="reset3" onClick="wsSendReset(3)">Reset</button>
+        <p id="demo3">NOT ACTIVE</p>
+    
+        <input style="font-size: 1.3em" type="number" id="data_to_send4" value="5"></input>
+        <button style="font-size: 1.3em" id="set4" onClick="wsSendSet(4)">Set</button>
+        <button style="font-size: 1.3em" id="cancel4" onClick="wsSendCancel(4)">Cancel</button>
+        <button style="font-size: 1.3em" id="reset4" onClick="wsSendReset(4)">Reset</button>
+        <p id="demo4">NOT ACTIVE</p>
+    </div>
 
-    <div id="output"></div>
+    <div style="float: left; margin-left: 50px;">
+        <h2>System Logs</h2>
+        <div id="output">
+        </div>
+    </div>
 </body>
 </html>

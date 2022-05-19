@@ -54,23 +54,24 @@ void MultiTimer<void(Args...)>::thread_func()
         } else {    // Have some active timers
 
             // Check the active timer with closest expire time
-            auto closest_expire = active_timers.front()->expire_time;
-            int current_timer_id = active_timers.front()->id;
-            print_log(INFO, format("Timer #{} starting tiking down", current_timer_id));
-            cv.wait_until(lk, closest_expire);
+            print_log(INFO, format("Timer #{} starting tiking down", active_timers.front()->id));
+            cv.wait_until(lk, active_timers.front()->expire_time, [&] {
+                return active_timers.empty();
+            });
 
             if (active_timers.empty())
                 continue;
-            print_log(DEBUG, format("# timers {}", timers.size()));
-            print_log(DEBUG, format("# active timers {}", active_timers.size()));
-            print_log(INFO, format("Timer #{} time out!", current_timer_id));
-            active_timers.front()->num_timeouts++;
-            active_timers.front()->callback();
-            print_log(INFO, "Callback function executed...");
+            if (active_timers.front()->expire_time <= std::chrono::system_clock::now()) {
+                print_log(INFO, format("Timer #{} time out!", active_timers.front()->id));
+                active_timers.front()->num_timeouts++;
+                active_timers.front()->callback();
+                print_log(INFO, "Callback function executed...");
 
-            // Remove expired timer from list; it is still kept in the vector
-            active_timers.front()->active = false;
-            active_timers.pop_front();
+                // Remove expired timer from list; it is still kept in the vector
+                active_timers.front()->active = false;
+                timers[active_timers.front()->id] = false;
+                active_timers.pop_front();
+            }
         }
         lk.unlock();
     }
@@ -84,8 +85,10 @@ int MultiTimer<void(Args...)>::set(
     Args&&...args
 ){
     // Invalid id or timer already active
-    if (id < 0 || id >= num_timers || timers[id].active)
+    if (id < 0 || id >= num_timers || timers[id].active) {
+        print_log(INFO, format("Timer #{} already active!", id));
         return 1;
+    }
 
     std::lock_guard lk(mx);
     auto timer_p = std::make_unique<Timer>(timers[id]);
@@ -112,7 +115,6 @@ int MultiTimer<void(Args...)>::cancel(int id)
     active_timers.remove_if([=](std::unique_ptr<Timer> &p)
                             { return p->id == id; });
     print_log(INFO, format("Timer #{} cancelled!", id));
-    print_log(DEBUG, format("# active timers {}", active_timers.size()));
 
     cv.notify_one();
     return 0;
@@ -133,21 +135,6 @@ int MultiTimer<void(Args...)>::reset(
 }
 
 
-// TEST
-// void print_timeout(int i)
-// {
-//     std::cout << "This is the callback function" << std::endl;
-//     std::cout << "Int i is " << i << std::endl;
-// } 
-
-// int main()
-// {
-//     MultiTimer<void(int)> t{1};
-//     t.set(0, 5s, print_timeout, 23);
-//     std::this_thread::sleep_for(0.5s);
-//     t.cancel(0);
-// }
-
 // HTML 5 GUI Demo
 // Copyright (c) 2019 Borislav Stanimirov
 //
@@ -160,19 +147,11 @@ int MultiTimer<void(Args...)>::reset(
 #include "boost/asio/ip/tcp.hpp"
 
 #include <cstdlib>
-// #include <functional>
-// #include <iostream>
-// #include <string>
-// #include <thread>
-// #include <memory>
 #include <set>
 #include <deque>
-// #include <chrono>
 #include <cassert>
 
 using namespace std;
-// using namespace std::chrono_literals;
-// using namespace mpcs_51044_final_project::v1;
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -195,8 +174,7 @@ class Session : public enable_shared_from_this<Session>
 {
 public:
     Session(tcp::socket &&socket)
-        : m_id(++sid), m_ws(move(socket))
-    {
+        : m_id(++sid), m_ws(move(socket)) {
         // set suggested timeout settings for the websocket
         m_ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
 
@@ -210,39 +188,33 @@ public:
         cout << "Created session " << m_id << '\n';
 
         // Create MultiTimer
-        timer_p = make_unique<MultiTimer<void()>>(1);
+        num_timers = 5;
+        timer_p = make_unique<MultiTimer<void()>>(num_timers);
     }
 
-    void run()
-    {
+    void run() {
         m_ws.async_accept(beast::bind_front_handler(&Session::onAccept, shared_from_this()));
     }
 
-    void onAccept(beast::error_code e)
-    {
+    void onAccept(beast::error_code e) {
         if (e)
             return fail(e, "accept");
         doRead();
     }
 
-    void doRead()
-    {
+    void doRead() {
         m_ws.async_read(m_readBuf, beast::bind_front_handler(&Session::onRead, shared_from_this()));
     }
 
-    void onRead(beast::error_code e, size_t /*length*/)
-    {
+    void onRead(beast::error_code e, size_t /*length*/) {
         if (e == websocket::error::closed)
             return close();
         if (e)
             return fail(e, "read");
 
-        if (!m_ws.got_text())
-        {
+        if (!m_ws.got_text()) {
             cout << "o_O Got non text. Ignoring.\n";
-        }
-        else
-        {
+        } else {
             auto packet = make_shared<Packet>();
             packet->text = true;
             auto data = reinterpret_cast<const char *>(m_readBuf.cdata().data());
@@ -257,34 +229,30 @@ public:
     void onReceive(const PacketPtr &packet)
     {
         cout << "Received: " << packet->textBuffer << '\n';
-        // echo
-        // send(packet);
 
         // Set Timer
-        if (packet->textBuffer.find("SET") == 0)
-        {
-            auto cb = bind(&Session::callback, this);
-            auto timeout = stoi(packet->textBuffer.substr(4)); // SET:5 -> 5
-            timer_p->set(0, chrono::seconds(timeout), cb);
-            sendMsg("SET DONE!");
+        if (packet->textBuffer.find("SET") == 0) {
+            auto id = stoi(packet->textBuffer.substr(4, 5));    // SET:1:5 -> 1
+            auto cb = bind(&Session::callback, this, id);
+            auto timeout = stoi(packet->textBuffer.substr(6)); // SET:1:5 -> 5
+            timer_p->set(id, chrono::seconds(timeout), cb);
+            sendMsg("SET DONE:" + to_string(id));
 
-        }
-        else if (packet->textBuffer.find("CANCEL") == 0)
-        {
-            timer_p->cancel(0);
-            sendMsg("CANCELLED");
-        }
-        else if (packet->textBuffer.find("RESET") == 0)
-        {
-            auto cb = bind(&Session::callback, this);
-            auto timeout = stoi(packet->textBuffer.substr(6)); // RESET:5 -> 5
-            timer_p->reset(0, chrono::seconds(timeout), cb);
-            sendMsg("RESET DONE!");
+        } else if (packet->textBuffer.find("CANCEL") == 0) {
+            auto id = stoi(packet->textBuffer.substr(7));    // CANCEL:1 -> 1
+            timer_p->cancel(id);
+            sendMsg("CANCELLED:" + to_string(id));
+
+        } else if (packet->textBuffer.find("RESET") == 0) {
+            auto id = stoi(packet->textBuffer.substr(6));   // RESET:1:5 -> 1
+            auto cb = bind(&Session::callback, this, id);
+            auto timeout = stoi(packet->textBuffer.substr(8)); // RESET:1:5 -> 5
+            timer_p->reset(id, chrono::seconds(timeout), cb);
+            sendMsg("RESET DONE:" + to_string(id));
         }
     }
 
-    void send(const PacketPtr &packet)
-    {
+    void send(const PacketPtr &packet) {
         m_writeQueue.emplace_back(packet);
         if (m_writeQueue.size() > 1)
             return; // we're already writing
@@ -292,8 +260,7 @@ public:
         doWrite();
     }
 
-    void doWrite()
-    {
+    void doWrite() {
         assert(!m_writeQueue.empty());
 
         auto &packet = m_writeQueue.front();
@@ -305,8 +272,7 @@ public:
             m_ws.async_write(net::buffer(packet->binaryBuffer), std::move(handler));
     }
 
-    void onWrite(beast::error_code e, std::size_t)
-    {
+    void onWrite(beast::error_code e, std::size_t) {
         if (e)
             return fail(e, "write");
 
@@ -317,72 +283,56 @@ public:
         doWrite();
     }
 
-    void fail(beast::error_code e, const char *source)
-    {
+    void fail(beast::error_code e, const char *source) {
         cerr << "Session " << m_id << " error: " << e << " in " << source << '\n';
     }
 
-    void close()
-    {
+    void close() {
         cout << "Session " << m_id << " closed \n";
     }
 
-    void sendMsg(string msg)
-    {
+    void sendMsg(string msg) {
         auto p = make_shared<Packet>();
         p->textBuffer = msg;
         p->text = true;
         send(p);
     }
 
-    void callback()
-    {
-        sendMsg("CALLBACK EXECUTED"s);
+    void callback(int i) {
+        sendMsg("CALLBACK EXECUTED:" + to_string(i));
     }
 
 private:
     const uint32_t m_id;
     websocket::stream<tcp::socket> m_ws;
-
-    // io
-    beast::flat_buffer m_readBuf, m_writeBuf;
-
+    beast::flat_buffer m_readBuf, m_writeBuf; // io
     deque<PacketPtr> m_writeQueue;
-
     unique_ptr<MultiTimer<void()>> timer_p;
+    int num_timers; // num of Timers in MultiTimer
 };
 
-class Server
-{
+class Server {
 public:
     Server(tcp::endpoint endpoint)
-        : m_context(1), m_acceptor(m_context, endpoint)
-    {
-    }
+        : m_context(1), m_acceptor(m_context, endpoint) {}
 
-    int run()
-    {
+    int run() {
         doAccept();
         m_context.run();
         return 0;
     }
 
-    void doAccept()
-    {
+    void doAccept() {
         m_acceptor.async_accept(beast::bind_front_handler(&Server::onAccept, this));
     }
 
-    void onAccept(beast::error_code error, tcp::socket socket)
-    {
-        if (error)
-        {
+    void onAccept(beast::error_code error, tcp::socket socket) {
+        if (error) {
             cerr << "Server::onAccept error: " << error << '\n';
             return;
         }
-
         auto session = make_shared<Session>(move(socket));
         session->run();
-
         doAccept();
     }
 

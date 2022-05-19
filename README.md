@@ -9,19 +9,14 @@ The further challenge here is to implement multiple timers. A single timer is no
 
 It is possible to realize multiple (say 100) timers in a single thread. The idea is to have a multitimer consisting of a list of single timers, which could be actively running or not. We record a sorted list of active single timers according to their expiration time. By constantly checking the single timer with the nearest expiration time (at the head of the sorte list) and allowing it to expire (execute the callback function), we can realize multiple timers running in a single thread. We can cancel any timer any time before it expires by removing it from the active timer sorted list.
 
-![alt text](./design.png)
-
 
 # How to run
-Just compile `timer.cpp` file and run. There is a short test in the `main()` function.
+Just compile `timer.cpp` file and run. It will run a web-socket server and the `index.html` acts as a client.
+1. Compile `timer.cpp` and run it.
+2. Run a http server in root directory. For example `python3 -m http.server` with default port as `8000`.
+3. Open a web browser and go to `localhost:8000`.
+4. Click around on the web page. There are five timers in the MultiTimer, all run in the same thread. Click `Set`, `Cancel` or `Reset` button to see its status change below.
 
-```
-cd .
-
-clang++ -std=c++17 -stdlib=libc++ -g timer.cpp -o timer
-
-./timer
-```
 
 # Main C++ techniques used
 Please note the following C++ features are used in the project. I have zero C++ programming experience before. I learned all of them in this quarter. It is quite a enjoyable and intellectually challenging adventure.
