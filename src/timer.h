@@ -11,8 +11,6 @@
 
 namespace mpcs_51044_final_project {
     namespace v1 {
-        template <typename T> struct MultiTimer;
-
         struct Timer
         {
             int id;
@@ -24,23 +22,20 @@ namespace mpcs_51044_final_project {
             Timer(int id) : id(id), active(false), num_timeouts(0){};
         };
 
-        template <typename... Args>
-        struct MultiTimer<void(Args...)>
+        struct MultiTimer
         {
             MultiTimer(int num_timers); // Initialize Timers with id equals index in vector
             ~MultiTimer();
             int set(
                 int id,
                 std::chrono::milliseconds timeout,
-                std::function<void(Args...)> callback,
-                Args&&... args
+                std::function<void()> callback
             );  // Start a timer with certain timeout, callback function and args
             int cancel(int id); // Cancel an active timer
             int reset(
                 int id,
                 std::chrono::milliseconds timeout,
-                std::function<void(Args...)> callback,
-                Args&&... args
+                std::function<void()> callback
             );  // Cancel an active timer and restart it
 
         private:
@@ -57,12 +52,6 @@ namespace mpcs_51044_final_project {
 
             void thread_func(); // Call by worker thread
         };
-
-        // Compare Timers according to their expire time
-        bool timer_comp(std::unique_ptr<Timer> const &t1, std::unique_ptr<Timer> const &t2)
-        {
-            return t1->expire_time < t2->expire_time;
-        }
     }   // namespace v1
 
     using namespace v1;
