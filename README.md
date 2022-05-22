@@ -1,4 +1,4 @@
-# MultiTimer in a Single Thread
+# MultiTimer in a Separate Single Thread
 
 # Backgrounds and Design
 This project is inspired by the timers in TCP (Transmission Control Protocol). However, this project is totally independent.
@@ -11,9 +11,20 @@ It is possible to realize multiple (say 100) timers in a single thread. The idea
 
 
 # How to run
-Just compile `timer.cpp` file and run. It will run a web-socket server and the `index.html` acts as a client.
-1. Compile `timer.cpp` and run it.
-2. Run a http server in root directory. For example `python3 -m http.server` with default port as `8000`.
+0. This project requires `boost` library installed on your computer.
+1. Compile source files and start the server.
+```
+mkdir build
+cd build
+cmake ..
+make
+./server
+```
+2. Go back to root directory and start a http server.
+```
+cd ..
+python3 -m http.server
+```
 3. Open a web browser and go to `localhost:8000`.
 4. Click around on the web page. There are five timers in the MultiTimer, all run in the same thread. Click `Set`, `Cancel` or `Reset` button to see its status change below.
 

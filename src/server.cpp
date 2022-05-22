@@ -1,11 +1,8 @@
 
+// Revised from:
 // HTML 5 GUI Demo
 // Copyright (c) 2019 Borislav Stanimirov
-//
-// Distributed under the MIT Software License
-// See accompanying file LICENSE.txt or copy at
-// https://opensource.org/licenses/MIT
-//
+
 #include "boost/beast/core.hpp"
 #include "boost/beast/websocket.hpp"
 #include "boost/asio/ip/tcp.hpp"
@@ -48,8 +45,7 @@ public:
 
         // set a decorator to change the Server of the handshake
         m_ws.set_option(websocket::stream_base::decorator(
-            [](websocket::response_type &res)
-            {
+            [](websocket::response_type &res) {
                 res.set(http::field::server, string(BOOST_BEAST_VERSION_STRING) + "ws-simple-server");
             }));
 
