@@ -12,6 +12,8 @@
 #include <deque>
 #include <cassert>
 #include <iostream>
+#include <regex>
+#include <tuple>
 
 #include "timer.h"
 
@@ -86,30 +88,30 @@ public:
         doRead(); // read loop
     }
 
+    tuple<string, string, string> parseMsg(string const &msg) {
+        // msg: "<CANCEL/SET/RESET>:<ID>:<TIMEOUT>""
+        regex receive_regex("(\\w*):(\\d*):(\\d*)");
+        smatch what;
+        regex_search(msg, what, receive_regex);
+        return { what[1], what[2], what[3] };
+    }
+
     void onReceive(const PacketPtr &packet)
     {
-        cout << "Received: " << packet->textBuffer << '\n';
+        string const &recv_msg = packet->textBuffer;
+        auto [cmd, id, timeout] = parseMsg(recv_msg);
+        assert(!id.empty());
+        auto cb = bind(&Session::callback, this, stoi(id));
 
-        // Set Timer
-        if (packet->textBuffer.find("SET") == 0) {
-            auto id = stoi(packet->textBuffer.substr(4, 5));    // SET:1:5 -> 1
-            auto cb = bind(&Session::callback, this, id);
-            auto timeout = stoi(packet->textBuffer.substr(6)); // SET:1:5 -> 5
-            timer_p.set(id, chrono::seconds(timeout), cb);
-            sendMsg("SET DONE:" + to_string(id));
-
-        } else if (packet->textBuffer.find("CANCEL") == 0) {
-            auto id = stoi(packet->textBuffer.substr(7));    // CANCEL:1 -> 1
-            timer_p.cancel(id);
-            sendMsg("CANCELLED:" + to_string(id));
-
-        } else if (packet->textBuffer.find("RESET") == 0) {
-            auto id = stoi(packet->textBuffer.substr(6));   // RESET:1:5 -> 1
-            auto cb = bind(&Session::callback, this, id);
-            auto timeout = stoi(packet->textBuffer.substr(8)); // RESET:1:5 -> 5
-            timer_p.reset(id, chrono::seconds(timeout), cb);
-            sendMsg("RESET DONE:" + to_string(id));
+        if (cmd == "SET") {
+            timer_p.set(stoi(id), chrono::seconds(stoi(timeout)), cb);
+        } else if (cmd == "CANCEL") {
+            timer_p.cancel(stoi(id));
+        } else if (cmd == "RESET") {
+            timer_p.reset(stoi(id), chrono::seconds(stoi(timeout)), cb);
         }
+
+        sendMsg(cmd + " DONE:" + id);
     }
 
     void send(const PacketPtr &packet) {

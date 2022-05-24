@@ -7,7 +7,7 @@ var output;
 var ws;
 
 var interval_ids = [0, 0, 0, 0, 0]; // for five timers
-const CANCELLED = "CANCELLED";
+const CANCELLED = "CANCEL DONE";
 const EXECUTED = "CALLBACK EXECUTED";
 const INACTIVE = "NOT ACTIVE";
 const ACTIVE = "ACTIVE";
@@ -16,12 +16,11 @@ const EXPIRING = "EXPIRING";
 function init() {
     output = document.getElementById("output");
 
-    let wsUri = 'ws://' + window.location.hostname+ ':7654';
+    let wsUri = 'ws://' + window.location.hostname+ ':7654';    // DEBUG:7654
 
     ws = new WebSocket(wsUri);
     ws.onopen = () => {
         writeToScreen('CONNECTED', output);
-        doSend('WebSocket rocks!');
     };
     ws.onclose = () => writeToScreen('<p style="color: red;">DISCONNECTED</p>');
     ws.onmessage = onMessage;
@@ -56,6 +55,7 @@ function writeToScreen(message) {
 
 function doSend(message) {
     writeToScreen("SENT: " + message);
+    console.log(message);   // DEBUG
     ws.send(message);
 }
 
@@ -68,7 +68,7 @@ function wsSendSet(i) {
 }
 
 function wsSendCancel(i) {
-    doSend("CANCEL:" + i);
+    doSend("CANCEL:" + i + ":");    // CANCEL:<i>: msg must contains two ":"
 }
 
 function wsSendReset(i) {
@@ -83,7 +83,6 @@ function wsSendReset(i) {
 function startCountDownDemo(i, seconds) {
     var distance = seconds * 1000;
     const demo_id =  "demo" + i;
-    console.log(demo_id);
     document.getElementById(demo_id).innerHTML = ACTIVE;
 
     interval_ids[i] = setInterval(function () {
