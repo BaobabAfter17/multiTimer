@@ -130,8 +130,3 @@ int MultiTimer::reset(
     print_log(INFO, format("Timer #{} reset successful!", id));
     return 0;
 }
-
-// int main() {
-//     print_log(INFO, "hello, world\n");
-//     return 0;
-// }

@@ -1,13 +1,14 @@
 # MultiTimer in a Separate Thread
 
-# Backgrounds and Design
+# Backgrounds
 This project is inspired by the timers in TCP (Transmission Control Protocol). However, this project is totally independent.
 
 The timer in TCP is created with a timeout (say 10 seconds) and a callback function (say it's foo) in the main thread. The timer runs **in a separate thread** and starts ticking once set. Normally the timer will expire after a certain time (10 seconds) and runs the callback function foo. However, if the main thread signals the timer before the expiration time (say 5 seconds after timer was set),  the timer will reset countdown time to 10 seconds.
 
-The further challenge here is to implement multiple timers. A single timer is not always sufficient. For example, a typical TCP implementation needs at least 2 timers. However, it is not good to create new thread for each single timer. Obviously, we could easily run out of threads. 
-
-It is possible to realize multiple (say 100) timers in a single thread. The idea is to have a multitimer consisting of a list of single timers, which could be actively running or not. We record a sorted list of active single timers according to their expiration time. By constantly checking the single timer with the nearest expiration time (at the head of the sorte list) and allowing it to expire (execute the callback function), we can realize multiple timers running in a single thread. We can cancel any timer any time before it expires by removing it from the active timer sorted list.
+This project realizes multiple (say 100) timers in a separate single thread. I add the following features on top of laster quarter's final project:
+1. File organization. Add CMake support and make all source files more organized.
+2. Add frontend demo. The connection between frontend and backend server is built using `boost::beast::websocket` and `boot::asio::ip::tcp`.
+3. Revised original code. Add `std::regex` and other optimizations.
 
 
 # How to run
@@ -61,4 +62,3 @@ python3 -m http.server
 
 ## `server.cpp`
 1. `std::regex`
-2. 

@@ -1,110 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<script language="javascript" type="text/javascript">
-"use strict";
-var output;
-var ws;
-
-var interval_ids = [0, 0, 0, 0, 0]; // for five timers
-const CANCELLED = "CANCEL DONE";
-const EXECUTED = "CALLBACK EXECUTED";
-const INACTIVE = "NOT ACTIVE";
-const ACTIVE = "ACTIVE";
-const EXPIRING = "EXPIRING";
-
-function init() {
-    output = document.getElementById("output");
-
-    let wsUri = 'ws://' + window.location.hostname+ ':7654';    // DEBUG:7654
-
-    ws = new WebSocket(wsUri);
-    ws.onopen = () => {
-        writeToScreen('CONNECTED', output);
-    };
-    ws.onclose = () => writeToScreen('<p style="color: red;">DISCONNECTED</p>');
-    ws.onmessage = onMessage;
-    ws.onerror = msg => writeToScreen('<p style="color: red;">ERROR: ' + msg.data + '</p>');
-}
-
-function onMessage(ws_msg) {
-    // echo
-    writeToScreen('<p style="color: blue;">RESPONSE: ' + ws_msg.data + '</p>');
-
-    if (ws_msg.data.startsWith(CANCELLED)) {   // CANCELLED:1
-        let demo_id = "demo" + ws_msg.data[CANCELLED.length + 1];
-        document.getElementById(demo_id).innerHTML = INACTIVE;
-    } else if (ws_msg.data.startsWith(EXECUTED)) {
-        let demo_id = "demo" + ws_msg.data[EXECUTED.length + 1];
-        console.log(ws_msg.data);
-        console.log(demo_id);
-        document.getElementById(demo_id).innerHTML = EXECUTED;
-    }
-}
-
-function writeToScreen(message) {
-    let p = document.createElement('p');
-    p.style.wordWrap = 'break-word';
-    p.innerHTML = message;
-
-    if (output.childNodes.length > 5) {
-        output.removeChild(output.childNodes[0]);
-    }
-    output.appendChild(p);
-}
-
-function doSend(message) {
-    writeToScreen("SENT: " + message);
-    console.log(message);   // DEBUG
-    ws.send(message);
-}
-
-window.addEventListener('load', init, false);
-
-function wsSendSet(i) {
-    var seconds = document.getElementById('data_to_send' + i).value;
-    doSend("SET:" + i + ":" + seconds);
-    startCountDownDemo(parseInt(i), parseInt(seconds));
-}
-
-function wsSendCancel(i) {
-    doSend("CANCEL:" + i + ":");    // CANCEL:<i>: msg must contains two ":"
-}
-
-function wsSendReset(i) {
-    var seconds = document.getElementById('data_to_send' + i).value;
-    doSend("RESET:" + i + ":" + seconds);
-    if (interval_ids[parseInt(i)] !== 0) {
-        clearInterval(interval_ids[parseInt(i)]);
-    }
-    startCountDownDemo(parseInt(i), seconds);
-}
-
-function startCountDownDemo(i, seconds) {
-    var distance = seconds * 1000;
-    const demo_id =  "demo" + i;
-    document.getElementById(demo_id).innerHTML = ACTIVE;
-
-    interval_ids[i] = setInterval(function () {
-        // Countdown cancelled in backend
-        if (document.getElementById(demo_id).innerHTML == INACTIVE
-                || document.getElementById(demo_id).innerHTML == EXECUTED) {
-            clearInterval(interval_ids[i]);
-            return;
-        }
-        
-        // Display the result in the element with id="demo"
-        distance = distance - 100;
-        document.getElementById(demo_id).innerHTML = distance + "ms";
-
-        // If the count down is finished, write some text 
-        if (distance < 0) {
-            clearInterval(interval_ids[i]);
-            document.getElementById(demo_id).innerHTML = EXPIRING;
-        }
-    }, 100);
-}
-</script>
+<script src="index.js"></script>
 </head>
 <body style="font-family: sans-serif; font-size: 1.5em">
     <h1>MultiTimer Demo</h1>
@@ -143,8 +40,7 @@ function startCountDownDemo(i, seconds) {
 
     <div style="float: left; margin-left: 50px;">
         <h2>System Logs</h2>
-        <div id="output">
-        </div>
+        <div id="output"></div>
     </div>
 </body>
 </html>
