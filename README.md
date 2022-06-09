@@ -21,7 +21,7 @@ cmake ..
 make
 ./server
 ```
-2. Open another termial window, go to root directory and start a http server.
+2. Open another terminal, go to root directory(`cd ..` from `build/` folder) and start a http server.
 ```
 python3 -m http.server
 ```
